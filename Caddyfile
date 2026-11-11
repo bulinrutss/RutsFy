@@ -1,0 +1,12 @@
+{
+	default_sni 192.168.0.5
+	servers {
+		protocols h1 h2
+	}
+}
+
+# HTTPS — instalar app no Android: https://192.168.0.5:8443
+https://192.168.0.5:8443 {
+	tls /certs/lan.crt /certs/lan.key
+	reverse_proxy sound-api:8090
+}

@@ -1,0 +1,14 @@
+# Produção (Oracle / ruts.dev) — só API, nginx na frente em /rutsfy/
+services:
+  sound-api:
+    build: ./backend
+    container_name: sound-api
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8090:8090"
+    env_file:
+      - ./backend/.env
+    volumes:
+      - ./backend/app:/app/app
+      - ./backend/static:/app/static
+      - ./data/downloads:/data/downloads

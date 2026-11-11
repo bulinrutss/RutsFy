@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-color-scheme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#121212" id="meta-theme-color" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <title>RutsFy</title>
+    <link rel="manifest" href="/manifest.webmanifest?v=3" />
+    <link rel="icon" href="/assets/icons/favicon.ico?v=3" sizes="any" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/assets/icons/favicon-32.png?v=3" />
+    <link rel="apple-touch-icon" href="/assets/icons/icon-192.png?v=3" />
+    <link rel="stylesheet" href="/assets/style.css?v=71" />
+    <script>
+      window.__deferredPwaInstall = null;
+      window.addEventListener("beforeinstallprompt", (e) => {
+        e.preventDefault();
+        window.__deferredPwaInstall = e;
+        window.dispatchEvent(new Event("rutsfy-pwa-install-ready"));
+      });
+      if ("serviceWorker" in navigator) {
+        navigator.serviceWorker.register("/sw.js?v=3", { scope: "/" }).catch(function () {});
+      }
+    </script>
+  </head>
+  <body class="auth-locked">
+    <div class="shell">
+      <aside class="nav" aria-label="Navegação">
+        <a class="logo" href="/">
+          <img class="logo-img" src="/assets/icons/logo.png?v=3" width="40" height="40" alt="" />
+          <span class="logo-text">RutsFy</span>
+        </a>
+        <nav class="nav-primary">
+          <button type="button" class="nav-item active" data-view="home">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h12a2 2 0 012 2v14l-7-3.5L7 19V3z"/></svg>
+            Biblioteca
+          </button>
+          <button type="button" class="nav-item" data-view="explore">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l3 7h7l-5.5 4.5L18 21l-6-4-6 4 1.5-7.5L2 9h7l3-7z"/></svg>
+            Explorar
+          </button>
+          <button type="button" class="nav-item" data-view="history">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a10 10 0 100 20 10 10 0 000-20zm1 5v5.2l3.5 2.1-.9 1.5L11 13V7h2z"/></svg>
+            Recentes
+          </button>
+        </nav>
+      </aside>
+
+      <div class="main-column">
+        <header class="topbar">
+          <form id="search-form" class="search-top" role="search">
+            <svg class="search-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M10.5 3a7.5 7.5 0 015.96 12.25l4.39 4.39-1.41 1.41-4.39-4.39A7.5 7.5 0 1110.5 3zm0 2a5.5 5.5 0 100 11 5.5 5.5 0 000-11z"/></svg>
+            <input
+              id="q"
+              type="search"
+              placeholder="O que você quer ouvir?"
+              autocomplete="off"
+              spellcheck="false"
+            />
+          </form>
+          <div id="user-menu" class="user-menu hidden">
+            <button
+              type="button"
+              id="user-menu-btn"
+              class="user-menu-trigger"
+              aria-haspopup="menu"
+              aria-expanded="false"
+              aria-controls="user-menu-panel"
+            >
+              <span id="user-menu-name" class="user-menu-name"></span>
+              <span class="user-avatar" id="user-avatar" aria-hidden="true">
+                <img id="user-avatar-img" class="user-avatar-img hidden" alt="" width="32" height="32" />
+                <span id="user-avatar-initial" class="user-avatar-initial"></span>
+              </span>
+            </button>
+            <div id="user-menu-panel" class="user-menu-panel hidden" role="menu" aria-label="Conta">
+              <div
+                id="user-menu-quota"
+                class="user-menu-quota hidden"
+                role="status"
+                aria-live="polite"
+                aria-hidden="true"
+              >
+                <span class="user-menu-quota-title"></span>
+                <span class="user-menu-quota-detail"></span>
+              </div>
+              <div id="user-menu-quota-divider" class="user-menu-divider hidden" role="separator"></div>
+              <button type="button" class="user-menu-item" role="menuitem" data-user-action="account">Minha conta</button>
+              <button type="button" class="user-menu-item" role="menuitem" data-user-action="customize">Customizar</button>
+              <div id="user-menu-admin-divider" class="user-menu-divider hidden" role="separator"></div>
+              <button type="button" id="user-menu-admin" class="user-menu-item hidden" role="menuitem" data-user-action="admin">Painel de administração</button>
+              <div class="user-menu-divider" role="separator"></div>
+              <button type="button" class="user-menu-item user-menu-item-muted" role="menuitem" data-user-action="logout">Sair</button>
+            </div>
+          </div>
+        </header>
+
+        <main class="content">
+          <section id="view-home" class="view">
+            <h1 class="view-title">Biblioteca</h1>
+            <p id="home-greeting" class="view-sub">O que combina com o que você ouve.</p>
+            <div id="home-main-block">
+              <div id="home-discover" class="explore-sections"></div>
+              <div id="home-sections" class="explore-sections"></div>
+              <div class="home-library-tracks">
+                <h2 class="library-tracks-heading">Músicas salvas</h2>
+                <p id="library-count" class="status-line"></p>
+                <div class="track-table-head" aria-hidden="true">
+                  <span class="th-title">Título</span>
+                  <span class="th-album">Canal</span>
+                  <span class="th-duration"><svg viewBox="0 0 16 16"><path d="M8 1a7 7 0 100 14A7 7 0 008 1zm0 2v5l4 2-.8 1.4L6 8.5V3h2z"/></svg></span>
+                  <span class="th-actions" aria-hidden="true"></span>
+                </div>
+                <ol id="library" class="track-list"></ol>
+              </div>
+            </div>
+          </section>
+
+          <section id="view-explore" class="view hidden">
+            <div id="deezer-browse" class="deezer-browse">
+              <div id="deezer-bar" class="free-browse-bar hidden">
+                <button type="button" id="deezer-back" class="page-btn nav-back-btn" aria-label="Voltar">← Voltar</button>
+                <img id="deezer-cover" class="np-hero-cover catalog-entity-cover hidden" alt="" width="480" height="480" />
+                <div class="catalog-entity-text">
+                  <h2 id="deezer-title" class="free-browse-title"></h2>
+                  <p id="deezer-subtitle" class="catalog-entity-sub hidden"></p>
+                </div>
+              </div>
+              <p id="deezer-status" class="status-line" aria-live="polite"></p>
+              <div id="deezer-shelves"></div>
+              <div id="deezer-list-heading" class="catalog-list-heading hidden">
+                <h2 id="deezer-tracks-label" class="explore-class-title deezer-tracks-label"></h2>
+                <button type="button" id="deezer-list-play" class="play-btn catalog-list-play" aria-label="Reproduzir lista">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+                </button>
+              </div>
+              <div id="deezer-track-head" class="track-table-head hidden" aria-hidden="true">
+                <span class="th-title">Título</span>
+                <span class="th-album">Álbum</span>
+                <span class="th-duration"><svg viewBox="0 0 16 16"><path d="M8 1a7 7 0 100 14A7 7 0 008 1zm0 2v5l4 2-.8 1.4L6 8.5V3h2z"/></svg></span>
+                <span class="th-actions" aria-hidden="true"></span>
+              </div>
+              <ol id="deezer-tracks" class="track-list"></ol>
+            </div>
+            <div id="explore-sections" class="explore-sections" role="list"></div>
+          </section>
+
+          <section id="view-search" class="view hidden">
+            <div class="search-view-head">
+              <div class="search-view-head-main">
+                <button type="button" id="nav-view-back" class="page-btn nav-back-btn hidden" aria-label="Voltar">← Voltar</button>
+                <img id="search-entity-cover" class="np-hero-cover catalog-entity-cover hidden" alt="" width="480" height="480" />
+                <div class="catalog-entity-text">
+                  <h1 id="search-heading" class="view-title">Buscar</h1>
+                  <p id="search-entity-sub" class="catalog-entity-sub hidden"></p>
+                </div>
+              </div>
+              <button type="button" id="search-save-shortcut" class="search-save-shortcut hidden">
+                Salvar na biblioteca
+              </button>
+            </div>
+            <p id="status" class="status-line" aria-live="polite">
+              <span id="status-spinner" class="spinner spinner-sm hidden" aria-hidden="true"></span>
+              <span id="status-text"></span>
+            </p>
+            <div id="search-catalog"></div>
+            <div id="search-list-heading" class="catalog-list-heading hidden">
+              <h2 id="search-tracks-label" class="explore-class-title deezer-tracks-label"></h2>
+              <button type="button" id="search-list-play" class="play-btn catalog-list-play" aria-label="Reproduzir lista">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+              </button>
+            </div>
+            <div id="search-track-head" class="track-table-head" aria-hidden="true">
+              <span class="th-title">Título</span>
+              <span id="search-col-album" class="th-album">Descrição</span>
+              <span class="th-duration"><svg viewBox="0 0 16 16"><path d="M8 1a7 7 0 100 14A7 7 0 008 1zm0 2v5l4 2-.8 1.4L6 8.5V3h2z"/></svg></span>
+              <span class="th-actions" aria-hidden="true"></span>
+            </div>
+            <ol id="results" class="track-list"></ol>
+            <div class="search-load-more-wrap">
+              <button type="button" id="search-show-more" class="page-btn hidden">Mostrar mais</button>
+            </div>
+          </section>
+
+          <section id="view-nowplaying" class="view view-nowplaying hidden">
+            <div class="np-scroll">
+              <div class="np-hero">
+                <header class="np-toolbar">
+                  <button type="button" id="np-minimize-btn" class="np-minimize-btn" aria-label="Minimizar reprodutor">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"/></svg>
+                  </button>
+                </header>
+                <div class="np-art-wrap">
+                  <img id="np-hero-cover" class="np-hero-cover hidden" alt="" width="480" height="480" />
+                  <div id="np-hero-cover-empty" class="np-hero-cover np-hero-cover--empty" aria-hidden="true"></div>
+                </div>
+                <div class="np-hero-meta">
+                  <div class="np-hero-meta-text">
+                    <h2 id="np-hero-title" class="np-hero-title">Selecione uma música</h2>
+                    <button type="button" id="np-hero-artist" class="np-hero-artist hidden"></button>
+                  </div>
+                  <div id="np-hero-actions" class="np-hero-actions"></div>
+                </div>
+                <div id="np-hero-controls" class="np-hero-controls"></div>
+              </div>
+              <div class="np-queue">
+                <div class="np-queue-handle" aria-hidden="true"></div>
+                <div class="np-queue-toolbar">
+                  <p id="now-playing-sub" class="np-queue-sub">Sua fila aparece aqui.</p>
+                  <button
+                    type="button"
+                    id="np-scroll-to-playing"
+                    class="np-scroll-to-playing-btn"
+                    disabled
+                    title="Rolar até a faixa em reprodução"
+                  >
+                    Faixa atual
+                  </button>
+                </div>
+                <div class="track-table-head np-queue-head" aria-hidden="true">
+                  <span class="th-title">Título</span>
+                  <span class="th-album">Canal</span>
+                  <span class="th-duration"><svg viewBox="0 0 16 16"><path d="M8 1a7 7 0 100 14A7 7 0 008 1zm0 2v5l4 2-.8 1.4L6 8.5V3h2z"/></svg></span>
+                  <span class="th-actions" aria-hidden="true"></span>
+                </div>
+                <ol id="now-playing-list" class="track-list"></ol>
+                <div class="search-load-more-wrap np-load-more-wrap">
+                  <button type="button" id="np-show-more" class="page-btn hidden">Mostrar mais</button>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section id="view-admin" class="view hidden">
+            <h1 class="view-title">Administração</h1>
+            <div class="admin-tabs" role="tablist">
+              <button type="button" class="page-btn admin-tab active" data-admin-tab="users">Usuários</button>
+              <button type="button" class="page-btn admin-tab" data-admin-tab="stats">Estatísticas</button>
+            </div>
+            <div id="admin-users"></div>
+            <div id="admin-stats" class="hidden"></div>
+          </section>
+
+          <section id="view-history" class="view hidden">
+            <h1 class="view-title">Recentes</h1>
+            <p id="history-count" class="status-line">O que você ouviu por último.</p>
+            <div class="track-table-head" aria-hidden="true">
+              <span class="th-title">Título</span>
+              <span class="th-album">Canal</span>
+              <span class="th-duration"><svg viewBox="0 0 16 16"><path d="M8 1a7 7 0 100 14A7 7 0 008 1zm0 2v5l4 2-.8 1.4L6 8.5V3h2z"/></svg></span>
+              <span class="th-actions" aria-hidden="true"></span>
+            </div>
+            <ol id="history" class="track-list"></ol>
+          </section>
+
+        </main>
+      </div>
+
+      <footer class="player-bar" aria-label="Reprodutor">
+        <div class="player-now">
+          <div class="player-now-main">
+            <button type="button" id="player-source-btn" class="player-source-btn" disabled title="Abrir Reproduzindo">
+              <img id="player-cover" class="player-cover hidden" alt="" width="56" height="56" />
+              <span id="player-title" class="player-title">Selecione uma música</span>
+            </button>
+            <button type="button" id="player-artist-btn" class="player-artist-btn hidden" title="Buscar"> </button>
+          </div>
+          <button type="button" id="btn-library" class="icon-btn btn-add-lib hidden" title="Adicionar à biblioteca">+</button>
+        </div>
+
+        <div class="player-center">
+          <div class="player-buttons">
+            <button type="button" id="btn-shuffle" class="icon-btn sm player-aux-btn" title="Ordem aleatória" aria-pressed="false">
+              <svg class="icon-outline" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M16 3h5v5M4 20L21 3M21 16v5h-5M4 4l5 5M15 15l6 6" />
+              </svg>
+            </button>
+            <button type="button" id="btn-prev" class="icon-btn" title="Anterior" disabled>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6h2v12H6V6zm4.5 6L18 18V6l-7.5 6z" /></svg>
+            </button>
+            <button type="button" id="btn-play" class="play-btn" aria-label="Tocar">
+              <span id="icon-play-spinner" class="spinner spinner-play hidden" aria-hidden="true"></span>
+              <svg id="icon-play" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+              <svg id="icon-pause" class="hidden" viewBox="0 0 24 24"><path d="M6 5h4v14H6V5zm8 0h4v14h-4V5z"/></svg>
+            </button>
+            <button type="button" id="btn-next" class="icon-btn" title="Próxima" disabled>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 18l7.5-6L6 6v12zm9-12h2v12h-2V6z" /></svg>
+            </button>
+            <button type="button" id="btn-repeat" class="icon-btn sm player-aux-btn" title="Repetir desligado" data-repeat="off" aria-pressed="false">
+              <svg class="icon-outline" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M17 1l4 4-4 4M3 11V9a4 4 0 014-4h14M7 23l-4-4 4-4M21 13v2a4 4 0 01-4 4H3" />
+              </svg>
+              <span id="repeat-one-badge" class="repeat-one-badge hidden" aria-hidden="true">1</span>
+            </button>
+            <button
+              type="button"
+              id="btn-stop-queue"
+              class="icon-btn sm player-aux-btn hidden"
+              title="Parar downloads e não avançar sozinho — a faixa atual continua"
+              aria-label="Parar downloads e fila automática"
+            >
+              <svg class="icon-outline" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M6 6h12v12H6V6z" />
+              </svg>
+            </button>
+          </div>
+          <div class="player-progress">
+            <span id="time-current" class="time">0:00</span>
+            <div class="seek-wrap">
+              <div class="seek-rail" aria-hidden="true"><div id="seek-fill-bar" class="seek-fill-bar"></div></div>
+              <input type="range" id="seek" min="0" max="1000" value="0" aria-label="Posição" />
+            </div>
+            <span id="time-total" class="time">0:00</span>
+          </div>
+        </div>
+
+        <div class="player-extra">
+          <span id="player-status" class="player-status"></span>
+          <div class="volume-wrap">
+            <div class="volume-rail" aria-hidden="true"><div id="volume-fill-bar" class="volume-fill-bar"></div></div>
+            <input type="range" id="volume" min="0" max="100" value="80" aria-label="Volume" />
+          </div>
+        </div>
+
+        <audio id="audio" preload="metadata"></audio>
+      </footer>
+
+      <nav
+        id="explore-cat-footer"
+        class="explore-cat-footer"
+        aria-label="Categorias do Explorar"
+        hidden
+      ></nav>
+
+      <nav class="mobile-tabbar" aria-label="Menu principal">
+        <button type="button" class="nav-item mobile-tab active" data-view="home">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h12a2 2 0 012 2v14l-7-3.5L7 19V3z"/></svg>
+          <span class="mobile-tab-label">Biblioteca</span>
+        </button>
+        <button type="button" class="nav-item mobile-tab" data-view="explore">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l3 7h7l-5.5 4.5L18 21l-6-4-6 4 1.5-7.5L2 9h7l3-7z"/></svg>
+          <span class="mobile-tab-label">Explorar</span>
+        </button>
+        <button type="button" class="nav-item mobile-tab" data-view="history">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a10 10 0 100 20 10 10 0 000-20zm1 5v5.2l3.5 2.1-.9 1.5L11 13V7h2z"/></svg>
+          <span class="mobile-tab-label">Recentes</span>
+        </button>
+      </nav>
+    </div>
+
+    <div id="pwa-install-banner" class="pwa-install-banner hidden" role="dialog" aria-labelledby="pwa-install-title">
+      <div class="pwa-install-card">
+        <div class="pwa-install-brand">
+          <img src="/assets/icons/icon-192.png?v=3" width="48" height="48" alt="" class="pwa-install-logo" />
+          <p id="pwa-install-title" class="pwa-install-title">Instalar o app RutsFy</p>
+        </div>
+        <p class="pwa-install-sub">Acesso rápido como app, sem barra do navegador.</p>
+        <div class="pwa-install-actions">
+          <button type="button" id="pwa-install-btn" class="modal-btn primary">Instalar</button>
+          <button type="button" id="pwa-install-dismiss" class="modal-btn">Agora não</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="auth-gate" class="auth-gate" aria-hidden="false">
+      <div class="auth-card" role="dialog" aria-labelledby="auth-title" aria-modal="true">
+        <img class="auth-brand-logo" src="/assets/icons/logo.png?v=3" width="80" height="80" alt="" />
+        <h2 id="auth-title" class="auth-title">Entrar no RutsFy</h2>
+        <p class="auth-sub">Sua biblioteca, recentes e sessão ficam na sua conta.</p>
+        <div class="auth-tabs" role="tablist">
+          <button type="button" class="auth-tab active" data-auth-mode="login" role="tab" aria-selected="true">Entrar</button>
+          <button type="button" class="auth-tab" data-auth-mode="register" role="tab" aria-selected="false">Criar conta</button>
+        </div>
+        <form id="auth-form" class="auth-form">
+          <label class="auth-field">
+            <span>Apelido</span>
+            <input id="auth-nickname" type="text" autocomplete="username" minlength="2" maxlength="32" required />
+          </label>
+          <label class="auth-field">
+            <span>Senha</span>
+            <input id="auth-password" type="password" autocomplete="current-password" minlength="6" required />
+          </label>
+          <p id="auth-error" class="auth-error hidden" role="alert"></p>
+          <button type="submit" id="auth-submit" class="auth-submit">Entrar</button>
+        </form>
+      </div>
+      <div id="auth-boot" class="auth-boot">
+        <img class="auth-brand-logo" src="/assets/icons/logo.png?v=3" width="80" height="80" alt="" />
+        <span class="auth-boot-spinner" aria-hidden="true"></span>
+      </div>
+    </div>
+
+    <div id="account-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="account-modal-title">
+      <div class="modal-card modal-card-wide">
+        <h2 id="account-modal-title" class="modal-title">Minha conta</h2>
+        <form id="account-form" class="account-form">
+          <div class="account-avatar-row">
+            <span class="user-avatar user-avatar-lg" id="account-avatar-preview">
+              <img id="account-avatar-img" class="user-avatar-img hidden" alt="" width="80" height="80" />
+              <span id="account-avatar-initial" class="user-avatar-initial"></span>
+            </span>
+            <div class="account-avatar-actions">
+              <label class="modal-btn account-photo-btn">
+                Escolher foto
+                <input id="account-avatar-file" type="file" accept="image/jpeg,image/png,image/webp" class="hidden" />
+              </label>
+              <button type="button" id="account-avatar-remove" class="modal-btn hidden">Remover foto</button>
+            </div>
+          </div>
+          <label class="auth-field">
+            <span>Apelido</span>
+            <input id="account-display-name" type="text" autocomplete="nickname" maxlength="32" required />
+          </label>
+          <fieldset class="account-password-fieldset">
+            <legend>Alterar senha</legend>
+            <label class="auth-field">
+              <span>Senha atual</span>
+              <input id="account-current-password" type="password" autocomplete="current-password" />
+            </label>
+            <label class="auth-field">
+              <span>Nova senha</span>
+              <input id="account-new-password" type="password" autocomplete="new-password" minlength="6" />
+            </label>
+          </fieldset>
+          <p id="account-form-error" class="auth-error hidden" role="alert"></p>
+          <p id="account-form-ok" class="account-form-ok hidden" role="status"></p>
+          <div class="modal-actions account-modal-actions">
+            <button type="button" id="account-modal-cancel" class="modal-btn">Cancelar</button>
+            <button type="submit" id="account-modal-save" class="modal-btn primary">Salvar</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div id="customize-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="customize-modal-title">
+      <div class="modal-card modal-card-wide">
+        <h2 id="customize-modal-title" class="modal-title">Customizar</h2>
+        <p class="modal-text">Modo da interface e cor de destaque.</p>
+        <div class="appearance-section">
+          <p class="appearance-section-label">Tema</p>
+          <div class="appearance-toggle" role="radiogroup" aria-label="Claro ou escuro">
+            <button type="button" class="appearance-option active" data-scheme="dark" aria-pressed="true">
+              Escuro
+            </button>
+            <button type="button" class="appearance-option" data-scheme="light" aria-pressed="false">
+              Claro
+            </button>
+          </div>
+        </div>
+        <p class="appearance-section-label appearance-section-label-accent">Cor de destaque</p>
+        <div id="theme-picker" class="theme-picker" role="listbox" aria-label="Temas"></div>
+        <div id="theme-custom-panel" class="theme-custom-panel hidden">
+          <label class="auth-field theme-accent-field">
+            <span>Cor de destaque</span>
+            <input id="theme-custom-accent" type="color" value="#3b82f6" />
+          </label>
+        </div>
+        <div class="modal-actions">
+          <button type="button" id="customize-modal-cancel" class="modal-btn">Fechar</button>
+          <button type="button" id="customize-modal-save" class="modal-btn primary">Aplicar</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="back-exit-toast" class="back-exit-toast hidden" role="status" aria-live="polite">
+      Pressione voltar de novo para sair
+    </div>
+
+    <div id="global-load-overlay" class="global-load-overlay hidden" aria-hidden="true">
+      <span class="spinner spinner-lg" role="progressbar"></span>
+    </div>
+
+    <script src="/assets/app.js?v=149"></script>
+  </body>
+</html>

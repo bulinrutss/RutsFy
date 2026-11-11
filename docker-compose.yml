@@ -1,0 +1,31 @@
+# Desenvolvimento / LAN legado (192.168.0.5). Produção: docker-compose.prod.yml + deploy_oracle.py
+services:
+  sound-api:
+    build: ./backend
+    container_name: sound-api
+    restart: unless-stopped
+    ports:
+      - "192.168.0.5:8090:8090"
+    env_file:
+      - ./backend/.env
+    volumes:
+      # Código live: deploy = só copiar arquivos + restart (sem rebuild)
+      - ./backend/app:/app/app
+      - ./backend/static:/app/static
+      # Memória persistente: áudios, biblioteca e contador de cota
+      - sound-downloads:/data/downloads
+
+  sound-caddy:
+    image: caddy:2-alpine
+    container_name: sound-caddy
+    restart: unless-stopped
+    ports:
+      - "192.168.0.5:8443:8443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./caddy/certs:/certs:ro
+    depends_on:
+      - sound-api
+
+volumes:
+  sound-downloads:

@@ -1,0 +1,12 @@
+senha.txt
+.env
+backend/.env
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+backend/downloads/
+backend/static/app/*.apk
+backend/static/app/version.json
+.android-sdk/
+caddy/certs/lan.key
