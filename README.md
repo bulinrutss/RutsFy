@@ -1,32 +1,28 @@
 # RutsFy
 
-Player web — biblioteca, busca e streaming de áudio. O site e o atalho do Chrome continuam iguais. O app Android em `android/` é um cliente nativo (Kotlin + Media3) da mesma API.
+Player de áudio com conta, biblioteca e catálogo. O site em [https://ruts.dev/rutsfy/](https://ruts.dev/rutsfy/) é um PWA (atalho do Chrome incluso). O app em `android/` é um cliente nativo (Kotlin, Compose, Media3) da mesma API.
 
-## App Android (APK)
+O catálogo (busca, Explorar, prateleiras) vem da API pública do Deezer: gêneros, artistas, álbuns e playlists. O Deezer não entrega o áudio. Ao tocar uma faixa nova, o backend acha um vídeo correspondente no YouTube com o yt-dlp, baixa em Opus e passa a servir o arquivo do disco. Faixas já salvas tocam sem baixar de novo.
 
-O projeto não substitui o player do navegador. Ele entra com a mesma conta, lê a biblioteca e o catálogo, pede o áudio em `/api/download` e toca com notificação e tela bloqueada.
+## O que o app faz
 
-**Build + OTA (sem Android Studio):** na 1ª vez instala JDK 17 e SDK em `.android-sdk/`; depois só:
+- **Conta:** apelido e senha, sessão em cookie HttpOnly (30 dias, uma sessão ativa por login). Perfil, avatar e, para admin, usuários e estatísticas.
+- **Biblioteca:** músicas salvas na conta, playlists do usuário e atalhos de artista, álbum ou playlist.
+- **Explorar:** lançamentos, gêneros, playlists e faixas em alta (Deezer).
+- **Busca:** artista, álbum ou faixa no catálogo Deezer. A busca antiga da YouTube Data API (`/api/search`) continua no backend para canal e mixes.
+- **Recentes:** histórico de reprodução da conta.
+- **Player:** fila, capa, notificação e tela bloqueada no Android.
+- **Limites de faixa nova:** mais de 20 minutos não baixa (o que já está no disco continua). Com `MAX_TRACK_FILE_SIZE_MB` (padrão 20), arquivo maior entra em `download_blocklist.json` e não tenta de novo.
 
-```powershell
-python scripts/build_android_apk.py --deploy
-```
+## Onde roda
 
-Só setup: `powershell -ExecutionPolicy Bypass -File scripts/setup_android_build.ps1`
+| Onde | URL | Como sobe |
+|------|-----|-----------|
+| Produção | [https://ruts.dev/rutsfy/](https://ruts.dev/rutsfy/) | `python scripts/deploy_oracle.py` |
+| Máquina local | `http://127.0.0.1:8090` | uvicorn, abaixo |
+| LAN `192.168.0.5` | legado, congelado | só `docker compose` antigo; não usar no dia a dia |
 
-O Gradle grava `backend/static/app/rutsfy.apk` e `version.json`. O deploy envia ao servidor; o app no celular baixa e pede instalar quando o `versionCode` sobe.
-
-Alternativa manual: Android Studio → **Build APK(s)**, ou `adb install …/rutsfy.apk`.
-
-A API apontada no app é `https://ruts.dev/rutsfy`. APK de debug — suficiente para uso próprio; Play Store exige keystore release.
-
-## Ambientes
-
-| Onde | URL | Deploy |
-|------|-----|--------|
-| **Produção** | [https://ruts.dev/rutsfy/](https://ruts.dev/rutsfy/) | `python scripts/deploy_oracle.py` |
-| **Local** | `http://127.0.0.1:8090` | dev abaixo |
-| LAN `192.168.0.5` | legado, congelado | não atualizar (só `--lan-legacy` se emergência) |
+Produção é a API no Docker (`docker-compose.prod.yml`), escutando em `127.0.0.1:8090`, com nginx na frente em `/rutsfy`. `BASE_PATH=/rutsfy` e cookie de sessão seguro entram no deploy.
 
 ## Desenvolvimento local
 
@@ -35,96 +31,84 @@ cd backend
 python -m venv .venv
 # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
-copy .env.example .env   # ou cp no Linux
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8090
+copy .env.example .env
+uvicorn app.main:app --reload --host 127.0.0.1 --port 8090
 ```
 
-Ou Docker na máquina (sem bind na LAN):
+Preencha `YOUTUBE_API_KEY` no `.env` se for usar mixes ou a busca da Data API. O catálogo Deezer não precisa dessa chave. `DOWNLOAD_MODE=local` baixa com yt-dlp nesta máquina.
 
-```bash
-docker compose up -d --build
-```
+## Áudio em produção
 
-## Deploy produção (Oracle)
+A Oracle baixa pouco do YouTube (IP de datacenter costuma cair no anti-bot). O modo usado lá é `DOWNLOAD_MODE=lan_relay`: a API enfileira o job e um worker na máquina de casa baixa com yt-dlp, envia o `.opus` e apaga a cópia local.
 
-Chave SSH: `Downloads/hosdt key/ssh-key-2026-09-01.key` (ubuntu@147.15.80.246).
-
-```bash
-python scripts/deploy_oracle.py
-# equivalente:
-python scripts/deploy.py
-```
-
-Sincronizar **músicas/dados** da LAN para Oracle (cópia direta, rápida):
-
-```bash
-python scripts/migrate_lan_to_oracle_direct.py
-```
-
-## Downloads via LAN (recomendado)
-
-A Oracle baixa pouco do YouTube; o worker na **VPS de casa** faz o yt-dlp, envia o `.opus` para a Oracle e apaga o arquivo local.
-
-1. Em `backend/.env` (produção): `DOWNLOAD_MODE=lan_relay`, `LAN_DOWNLOAD_WORKER_TOKEN=<segredo longo>`, e opcional `MAX_TRACK_FILE_SIZE_MB=20` (faixas maiores não baixam e entram em `download_blocklist.json`).
-2. Deploy: `python scripts/deploy_oracle.py`
-3. Cookies na LAN: `python scripts/sync_cookies_to_lan.py` (padrão `LAN_SSH_HOST=192.168.0.4`).
-4. Instalar worker (senha **não** vai pro git — use env):
-   ```powershell
-   $env:LAN_SSH_PASSWORD="..."
-   $env:WORKER_TOKEN="<mesmo LAN_DOWNLOAD_WORKER_TOKEN>"
-   python scripts/install_lan_worker.py
-   ```
-5. IP fixo **192.168.0.4** + worker no boot (após queda de energia):
-   ```powershell
-   $env:LAN_SSH_PASSWORD="..."
-   python scripts/setup_lan_vps_boot.py
-   ```
-   (Netplan estático na VM + serviço `systemd` system-wide `rutsfy-worker`.)
-6. Logs na LAN: `journalctl -u rutsfy-worker -f` (ou `--user` se ainda usar unit antiga)
-
-Teste manual no PC: `python scripts/lan_download_worker.py` (com `WORKER_TOKEN` e `RUTSFY_API_BASE`).
-
-**Se a fila travar** (spinner longo, job `claimed` órfão após restart): `python scripts/requeue_stale_relay.py` — libera jobs e reinicia o worker. O sistema também se recupera sozinho: heartbeat a cada 30s, lease de 3 min sem sinal, e ao subir o worker devolve os próprios `claimed` para `pending`.
-
-Atualizar só o script do worker na LAN após mudanças: `python scripts/push_lan_worker.py`
-
-## Downloads na VPS (YouTube anti-bot)
-
-Na Oracle o YouTube costuma bloquear IP de datacenter (`Sign in to confirm you're not a bot`).
-**Não é cota da API** — busca pode funcionar e o download falhar. Com `DOWNLOAD_MODE=lan_relay`, o download pesado fica na LAN.
-
-1. No PC, **logado** no YouTube: abra [youtube.com](https://www.youtube.com), assista qualquer vídeo alguns segundos.
-2. Extensão **Get cookies.txt LOCALLY** → exportar **neste site** (precisa ter `LOGIN_INFO` e `__Secure-1PSID` no arquivo).
-3. Valide antes de enviar:
-   ```bash
-   python scripts/upload_youtube_cookies.py youtube_cookies.txt
-   ```
-   (Se faltar cookie de login, o script avisa e não envia.)
-   O script valida e envia; se faltar login no arquivo, ele para com aviso.
-5. Reinicie a API se precisar: `docker compose -f docker-compose.prod.yml restart sound-api` (no host Oracle).
-
-### Renovação automática (Windows, a cada 3 dias)
-
-Instale a tarefa agendada (exporta do Chrome/Edge, valida, envia e reinicia a API):
+1. No `.env` de produção: `DOWNLOAD_MODE=lan_relay` e `LAN_DOWNLOAD_WORKER_TOKEN` (segredo longo, o mesmo valor em `WORKER_TOKEN` no worker).
+2. `python scripts/deploy_oracle.py` (atalho: `python scripts/deploy.py`). Host e chave SSH ficam no script, fora deste arquivo.
+3. Cookies na máquina de casa, se o yt-dlp pedir login: `python scripts/sync_cookies_to_lan.py` (`LAN_SSH_HOST`, padrão `192.168.0.4`).
+4. Instalar o worker (senha SSH em `LAN_SSH_PASSWORD` ou em `senha.txt` na raiz, que não vai para o git):
 
 ```powershell
-& "E:\GitHub\sound\scripts\install_cookies_upload_scheduled_task.ps1"
+$env:LAN_SSH_PASSWORD="..."
+$env:WORKER_TOKEN="<mesmo LAN_DOWNLOAD_WORKER_TOKEN>"
+python scripts/install_lan_worker.py
 ```
 
-Teste manual: `backend\.venv\Scripts\python.exe scripts\renew_and_upload_youtube_cookies.py`  
-Log: `C:\Users\svbul\Downloads\cokies\rutsfy-cookies-upload.log`
+5. IP fixo e serviço no boot: `python scripts/setup_lan_vps_boot.py` (com `LAN_SSH_PASSWORD`). Unit `systemd` system-wide: `rutsfy-worker`.
+6. Log: `journalctl -u rutsfy-worker -f`.
 
-Às 03:00 funciona melhor com o navegador **fechado** (yt-dlp lê o perfil). Se falhar, exporte com a extensão e o próximo ciclo usa o arquivo em `cokies\`.
+Teste no PC, sem instalar na VM: `python scripts/lan_download_worker.py` (com `WORKER_TOKEN` e, se precisar, `RUTSFY_API_BASE`).
 
-Faixas que **já estão** em `/data/downloads` tocam sem baixar de novo (~219 arquivos migrados da LAN).
+Fila presa (job `claimed` órfão): `python scripts/requeue_stale_relay.py`. O worker também se recupera sozinho: heartbeat a cada 30s, lease de 3 minutos sem sinal, e ao subir devolve os próprios `claimed` para `pending`.
 
-## Chave da API de busca
+Só o script do worker, depois de mudar `scripts/lan_download_worker.py`: `python scripts/push_lan_worker.py`.
+
+Copiar de novo músicas e dados da LAN para a Oracle: `python scripts/migrate_lan_to_oracle_direct.py`.
+
+## Cookies do YouTube
+
+Quando o download roda na própria VPS (`DOWNLOAD_MODE=local`), o YouTube pede sessão. Isso não é cota da API: a busca no Deezer pode funcionar e o download falhar.
+
+1. No PC, logado no YouTube, abra um vídeo por alguns segundos.
+2. Extensão **Get cookies.txt LOCALLY** → exportar **neste site** (o arquivo precisa ter `LOGIN_INFO` e `__Secure-1PSID`).
+3. Validar e enviar:
+
+```bash
+python scripts/upload_youtube_cookies.py youtube_cookies.txt
+```
+
+Se faltar cookie de login, o script avisa e não envia. Reinício na Oracle, se precisar: `docker compose -f docker-compose.prod.yml restart sound-api`.
+
+Renovação no Windows (a cada 3 dias): `scripts/install_cookies_upload_scheduled_task.ps1`. Teste manual: `python scripts/renew_and_upload_youtube_cookies.py`. Com o navegador fechado o yt-dlp lê o perfil; se falhar, o próximo ciclo usa o export da extensão.
+
+No modo `lan_relay` o download pesado fica na máquina de casa; os cookies vão para lá (`sync_cookies_to_lan.py`), não para o IP da Oracle.
+
+## App Android
+
+Cliente da API de produção (`https://ruts.dev/rutsfy`). Mesma conta, biblioteca, catálogo Deezer e áudio em `/api/download`, com notificação e tela bloqueada. APK de debug, assinado com a chave de debug — uso próprio, não Play Store.
+
+Build e OTA sem Android Studio (na primeira vez o script instala JDK 17 e o SDK em `.android-sdk/`):
+
+```powershell
+python scripts/build_android_apk.py --deploy
+```
+
+Só o SDK: `powershell -ExecutionPolicy Bypass -File scripts/setup_android_build.ps1`.
+
+O Gradle grava `backend/static/app/rutsfy.apk` e `version.json`. O deploy manda os dois para o servidor. O app compara `versionCode` e pede para instalar quando sobe.
+
+Manual: Android Studio → **Build APK(s)**, ou `adb install` no `rutsfy.apk`.
+
+## Chave da YouTube Data API
+
+Serve para mixes, vídeos de canal e `/api/search`. O Explorar e a busca do app usam o Deezer e não gastam essa cota. Resolver uma faixa do catálogo também não usa `search.list`.
 
 1. [Google Cloud Console](https://console.cloud.google.com/) → ative **YouTube Data API v3**.
-2. Crie **API key** → `YOUTUBE_API_KEY` no `backend/.env` (local e no servidor via deploy).
-3. **Reserva de cota:** chaves extras em `YOUTUBE_API_KEYS=segunda,terceira,quarta` (mesmo `.env`). Ao esgotar a principal, usa a próxima. `/api/quota` mostra `apiKeyCount` e uso por `keyId` (hash).
+2. Crie uma API key e coloque em `YOUTUBE_API_KEY` no `backend/.env`. O deploy de produção lê esse arquivo.
+3. Reserva: `YOUTUBE_API_KEYS=segunda,terceira`. Ao esgotar a principal, usa a próxima. `/api/quota` mostra `apiKeyCount` e uso por `keyId`.
 
-## Segurança
+## O que não entra no git
 
-- Não commite `senha.txt` nem `.env`.
-- Produção usa `BASE_PATH=/rutsfy` e cookies seguros (configurado no deploy Oracle).
+- `backend/.env` e qualquer `.env` com chave ou token
+- `senha.txt`
+- `caddy/certs/*.key` (a chave privada TLS da LAN)
+- `backend/downloads/` (áudios, `rutsfy.db`, cookies, cache)
+- APK gerado e `backend/static/app/version.json`
