@@ -1,114 +1,99 @@
 # RutsFy
 
-Player de áudio com conta, biblioteca e catálogo. O site em [https://ruts.dev/rutsfy/](https://ruts.dev/rutsfy/) é um PWA (atalho do Chrome incluso). O app em `android/` é um cliente nativo (Kotlin, Compose, Media3) da mesma API.
+Player de música com catálogo, biblioteca por conta e dois clientes sobre a mesma API. O site é uma PWA. O Android é um app nativo. Os dois entram com a mesma conta, leem a mesma biblioteca e tocam o áudio que o servidor já guardou.
 
-O catálogo (busca, Explorar, prateleiras) vem da API pública do Deezer: gêneros, artistas, álbuns e playlists. O Deezer não entrega o áudio. Ao tocar uma faixa nova, o backend acha um vídeo correspondente no YouTube com o yt-dlp, baixa em Opus e passa a servir o arquivo do disco. Faixas já salvas tocam sem baixar de novo.
+Instância em produção: [ruts.dev/rutsfy](https://ruts.dev/rutsfy/).
 
-## O que o app faz
+O catálogo (busca, explorar, artista, álbum, playlist) vem da API pública do Deezer e traz só metadados. O áudio não vem de lá. Quando alguém toca uma faixa que ainda não está no servidor, o backend localiza um vídeo correspondente, baixa o áudio em Opus e passa a servi-lo do disco. A reprodução seguinte não baixa de novo.
 
-- **Conta:** apelido e senha, sessão em cookie HttpOnly (30 dias, uma sessão ativa por login). Perfil, avatar e, para admin, usuários e estatísticas.
-- **Biblioteca:** músicas salvas na conta, playlists do usuário e atalhos de artista, álbum ou playlist.
-- **Explorar:** lançamentos, gêneros, playlists e faixas em alta (Deezer).
-- **Busca:** artista, álbum ou faixa no catálogo Deezer. A busca antiga da YouTube Data API (`/api/search`) continua no backend para canal e mixes.
-- **Recentes:** histórico de reprodução da conta.
-- **Player:** fila, capa, notificação e tela bloqueada no Android.
-- **Limites de faixa nova:** mais de 20 minutos não baixa (o que já está no disco continua). Com `MAX_TRACK_FILE_SIZE_MB` (padrão 20), arquivo maior entra em `download_blocklist.json` e não tenta de novo.
+## O que a aplicação faz
 
-## Onde roda
+- Conta por apelido e senha, sessão em cookie HttpOnly, perfil e avatar.
+- Biblioteca da conta, playlists criadas pelo usuário e atalhos para artista, álbum ou playlist.
+- Explorar com lançamentos, gêneros e playlists.
+- Busca por artista, álbum ou faixa.
+- Histórico do que a conta ouviu.
+- Fila e tela de reprodução no site. No Android, playback com Media3, notificação e tela bloqueada.
+- Painel administrativo com usuários e estatísticas de uso.
 
-| Onde | URL | Como sobe |
-|------|-----|-----------|
-| Produção | [https://ruts.dev/rutsfy/](https://ruts.dev/rutsfy/) | `python scripts/deploy_oracle.py` |
-| Máquina local | `http://127.0.0.1:8090` | uvicorn, abaixo |
-| LAN `192.168.0.5` | legado, congelado | só `docker compose` antigo; não usar no dia a dia |
+Faixas novas acima de 20 minutos não entram na biblioteca. Arquivos que já estão no disco continuam disponíveis. Há também um teto de tamanho: o que passa do limite é registrado e não volta a ser tentado.
 
-Produção é a API no Docker (`docker-compose.prod.yml`), escutando em `127.0.0.1:8090`, com nginx na frente em `/rutsfy`. `BASE_PATH=/rutsfy` e cookie de sessão seguro entram no deploy.
+## Arquitetura
 
-## Desenvolvimento local
+```mermaid
+flowchart LR
+  web[Web PWA]
+  android[App Android]
+  api[API FastAPI]
+  deezer[Catálogo Deezer]
+  disk[Opus e SQLite]
+  fila[Fila de download]
+  worker[Worker com yt-dlp]
+
+  web --> api
+  android --> api
+  api --> deezer
+  api --> disk
+  api --> fila
+  fila --> worker
+  worker --> disk
+```
+
+A API é um processo FastAPI. Usuários, sessões, preferências, cache de catálogo e a fila de download ficam em SQLite, no mesmo volume dos arquivos de áudio. O site é HTML, CSS e JavaScript servidos pelo próprio backend, com manifest e service worker. O app Android consome os mesmos endpoints.
+
+Em produção a API sobe em Docker, atrás de um proxy, no prefixo `/rutsfy`. O download pesado não roda nesse processo: a API enfileira o pedido e um worker em outra máquina pega o job, baixa o áudio, envia o arquivo e apaga a cópia local. Dá para rodar o mesmo fluxo na máquina de desenvolvimento, com o yt-dlp local.
+
+## Stack
+
+| Parte | Tecnologia |
+| --- | --- |
+| API | Python 3.12, FastAPI, Uvicorn, Pydantic Settings, httpx |
+| Dados | SQLite, arquivos Opus no disco |
+| Áudio | yt-dlp e FFmpeg |
+| Web | HTML, CSS e JavaScript, PWA |
+| Android | Kotlin, Jetpack Compose, Media3, OkHttp, Coil. minSdk 26, compileSdk 35 |
+| Deploy | Docker. A imagem da API inclui FFmpeg |
+
+## Decisões
+
+**Catálogo e áudio são passos separados.** Navegar e buscar não gasta a cota da YouTube Data API. Essa cota fica para mixes, página de canal e a busca antiga, que ainda existem na API. Respostas da Data API ficam em cache, e mais de uma chave entra em rotação quando a principal esgota.
+
+**A faixa do catálogo vira um vídeo só na hora de tocar.** A resolução usa o yt-dlp, sem `search.list`, e o `videoId` fica em cache. O arquivo salvo é Opus. Capa, duração e crédito do artista são normalizados antes de chegar na interface.
+
+**A fila de download tolera queda do worker.** O worker faz claim, envia heartbeat e devolve o arquivo. Sem sinal por três minutos, o job volta para pendente. Ao subir, o worker libera o que tinha pego e não terminou.
+
+**A conta é própria, sem provedor externo.** Senha com PBKDF2-HMAC-SHA256, sessão opaca de 30 dias e uma sessão ativa por login. Preferências (playlists e atalhos) ficam no banco da conta, não no navegador.
+
+**Os dois clientes compartilham o contrato.** O site e o Android usam os mesmos recursos de sessão, biblioteca, catálogo e stream. O Android publica o APK junto da API, com `versionCode`, e o app instalado compara a versão e oferece a atualização.
+
+## Repositório
+
+```text
+backend/app/        API, autenticação, catálogo, download e fila
+backend/static/     interface web
+android/            cliente Android
+scripts/            build do APK, deploy e worker de download
+docker-compose.yml  ambiente antigo de rede local
+docker-compose.prod.yml
+```
+
+Módulos centrais da API: `main.py` (rotas), `auth.py` e `users_db.py` (conta), `deezer_catalog.py` e `deezer_resolve.py` (catálogo e vínculo com o vídeo), `downloader.py` (arquivo em disco), `download_relay.py` (fila).
+
+## Executar localmente
+
+Requer Python 3.12, FFmpeg e o yt-dlp no PATH.
 
 ```bash
 cd backend
 python -m venv .venv
-# Windows: .venv\Scripts\activate
+.venv\Scripts\activate
 pip install -r requirements.txt
 copy .env.example .env
 uvicorn app.main:app --reload --host 127.0.0.1 --port 8090
 ```
 
-Preencha `YOUTUBE_API_KEY` no `.env` se for usar mixes ou a busca da Data API. O catálogo Deezer não precisa dessa chave. `DOWNLOAD_MODE=local` baixa com yt-dlp nesta máquina.
+No Linux ou macOS, a ativação é `source .venv/bin/activate` e a cópia do exemplo é `cp .env.example .env`.
 
-## Áudio em produção
+Abra `http://127.0.0.1:8090`. O catálogo Deezer funciona sem chave. `YOUTUBE_API_KEY` no `.env` só é necessária para a YouTube Data API. Com `DOWNLOAD_MODE=local`, o áudio é baixado nesta máquina.
 
-A Oracle baixa pouco do YouTube (IP de datacenter costuma cair no anti-bot). O modo usado lá é `DOWNLOAD_MODE=lan_relay`: a API enfileira o job e um worker na máquina de casa baixa com yt-dlp, envia o `.opus` e apaga a cópia local.
-
-1. No `.env` de produção: `DOWNLOAD_MODE=lan_relay` e `LAN_DOWNLOAD_WORKER_TOKEN` (segredo longo, o mesmo valor em `WORKER_TOKEN` no worker).
-2. `python scripts/deploy_oracle.py` (atalho: `python scripts/deploy.py`). Host e chave SSH ficam no script, fora deste arquivo.
-3. Cookies na máquina de casa, se o yt-dlp pedir login: `python scripts/sync_cookies_to_lan.py` (`LAN_SSH_HOST`, padrão `192.168.0.4`).
-4. Instalar o worker (senha SSH em `LAN_SSH_PASSWORD` ou em `senha.txt` na raiz, que não vai para o git):
-
-```powershell
-$env:LAN_SSH_PASSWORD="..."
-$env:WORKER_TOKEN="<mesmo LAN_DOWNLOAD_WORKER_TOKEN>"
-python scripts/install_lan_worker.py
-```
-
-5. IP fixo e serviço no boot: `python scripts/setup_lan_vps_boot.py` (com `LAN_SSH_PASSWORD`). Unit `systemd` system-wide: `rutsfy-worker`.
-6. Log: `journalctl -u rutsfy-worker -f`.
-
-Teste no PC, sem instalar na VM: `python scripts/lan_download_worker.py` (com `WORKER_TOKEN` e, se precisar, `RUTSFY_API_BASE`).
-
-Fila presa (job `claimed` órfão): `python scripts/requeue_stale_relay.py`. O worker também se recupera sozinho: heartbeat a cada 30s, lease de 3 minutos sem sinal, e ao subir devolve os próprios `claimed` para `pending`.
-
-Só o script do worker, depois de mudar `scripts/lan_download_worker.py`: `python scripts/push_lan_worker.py`.
-
-Copiar de novo músicas e dados da LAN para a Oracle: `python scripts/migrate_lan_to_oracle_direct.py`.
-
-## Cookies do YouTube
-
-Quando o download roda na própria VPS (`DOWNLOAD_MODE=local`), o YouTube pede sessão. Isso não é cota da API: a busca no Deezer pode funcionar e o download falhar.
-
-1. No PC, logado no YouTube, abra um vídeo por alguns segundos.
-2. Extensão **Get cookies.txt LOCALLY** → exportar **neste site** (o arquivo precisa ter `LOGIN_INFO` e `__Secure-1PSID`).
-3. Validar e enviar:
-
-```bash
-python scripts/upload_youtube_cookies.py youtube_cookies.txt
-```
-
-Se faltar cookie de login, o script avisa e não envia. Reinício na Oracle, se precisar: `docker compose -f docker-compose.prod.yml restart sound-api`.
-
-Renovação no Windows (a cada 3 dias): `scripts/install_cookies_upload_scheduled_task.ps1`. Teste manual: `python scripts/renew_and_upload_youtube_cookies.py`. Com o navegador fechado o yt-dlp lê o perfil; se falhar, o próximo ciclo usa o export da extensão.
-
-No modo `lan_relay` o download pesado fica na máquina de casa; os cookies vão para lá (`sync_cookies_to_lan.py`), não para o IP da Oracle.
-
-## App Android
-
-Cliente da API de produção (`https://ruts.dev/rutsfy`). Mesma conta, biblioteca, catálogo Deezer e áudio em `/api/download`, com notificação e tela bloqueada. APK de debug, assinado com a chave de debug — uso próprio, não Play Store.
-
-Build e OTA sem Android Studio (na primeira vez o script instala JDK 17 e o SDK em `.android-sdk/`):
-
-```powershell
-python scripts/build_android_apk.py --deploy
-```
-
-Só o SDK: `powershell -ExecutionPolicy Bypass -File scripts/setup_android_build.ps1`.
-
-O Gradle grava `backend/static/app/rutsfy.apk` e `version.json`. O deploy manda os dois para o servidor. O app compara `versionCode` e pede para instalar quando sobe.
-
-Manual: Android Studio → **Build APK(s)**, ou `adb install` no `rutsfy.apk`.
-
-## Chave da YouTube Data API
-
-Serve para mixes, vídeos de canal e `/api/search`. O Explorar e a busca do app usam o Deezer e não gastam essa cota. Resolver uma faixa do catálogo também não usa `search.list`.
-
-1. [Google Cloud Console](https://console.cloud.google.com/) → ative **YouTube Data API v3**.
-2. Crie uma API key e coloque em `YOUTUBE_API_KEY` no `backend/.env`. O deploy de produção lê esse arquivo.
-3. Reserva: `YOUTUBE_API_KEYS=segunda,terceira`. Ao esgotar a principal, usa a próxima. `/api/quota` mostra `apiKeyCount` e uso por `keyId`.
-
-## O que não entra no git
-
-- `backend/.env` e qualquer `.env` com chave ou token
-- `senha.txt`
-- `caddy/certs/*.key` (a chave privada TLS da LAN)
-- `backend/downloads/` (áudios, `rutsfy.db`, cookies, cache)
-- APK gerado e `backend/static/app/version.json`
+Variáveis e comentários estão em `backend/.env.example`. O arquivo `.env` não entra no repositório.
